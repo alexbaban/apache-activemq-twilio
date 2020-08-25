@@ -1,0 +1,21 @@
+{
+    "name": "apache-activemq-twilio",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "private": "true",
+    "dependencies": {
+        "@stomp/stompjs": "^5.4.4",
+        "csvtojson": "^2.0.10",
+        "dotenv": "^8.2.0",
+        "moment": "^2.27.0",
+        "twilio": "^3.48.2",
+        "websocket": "^1.0.31"
+    }
+}
