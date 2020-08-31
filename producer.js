@@ -1,6 +1,6 @@
 // producer.js
 
-// Node.js packages used to communicate with ActiveMQ 
+// Node.js packages used to communicate with ActiveMQ
 // utilising WebSocket and STOMP protocols
 const StompJs = require('@stomp/stompjs');
 Object.assign(global, { WebSocket: require('websocket').w3cwebsocket });
@@ -48,10 +48,11 @@ function publishToQueue(data) {
     let row = data.shift();
     let mqData = {
         to: row['Phone'],
-        body: (`Hello ${row['Name']}, you have an appointment with us in ${leadTimeInMinutes} minutes. See you soon.`)
+        body: (`Hello ${row['Name']}, you have an appointment with us in ${leadTimeInMinutes}
+minutes. See you soon.`)
     };
 
-   // publish the current application message to the "foo.bar" queue
+    // publish the current application message to the "foo.bar" queue
     // uses AMQ_SCHEDULED_DELAY, the time in milliseconds that a message will wait
     // must be a positive value
     if (toDelayFromDate(row['AppointmentDateTime']) > 0) {
@@ -69,7 +70,6 @@ function publishToQueue(data) {
 
     // recursive call until all messages are added to queue
     publishToQueue(data);
-
 }
 
 // utility function, returns milliseconds
