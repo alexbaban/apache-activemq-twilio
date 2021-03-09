@@ -1,83 +1,73 @@
 // producer.js
 
-// Node.js packages used to communicate with ActiveMQ
-// utilising WebSocket and STOMP protocols
-const StompJs = require('@stomp/stompjs');
-Object.assign(global, { WebSocket: require('websocket').w3cwebsocket });
+// Node.js packages used to communicate with Azure Service Bus
+const { ServiceBusClient } = require("@azure/service-bus");
+
+// Load the .env file if it exists
+require("dotenv").config();
+
+// Define connection string and related Service Bus entity names here
+const connectionString =
+  process.env.SERVICEBUS_CONNECTION_STRING || "<connection string>";
+const queueName = process.env.QUEUE_NAME || "<queue name>";
 
 // Node.js package used to read data from .csv files
-const csv = require('csvtojson');
+const csv = require("csvtojson");
 
 // Node.js package used to work with dates and times
-const moment = require('moment');
-
-let appointmentsData = {};
+const moment = require("moment");
 
 // send the reminder "x" minutes before the appointment time
 const leadTimeInMinutes = 15;
 
-// create a STOMP client for ActiveMQ
-const stompClient = new StompJs.Client({
-    brokerURL: "ws://localhost:61614/ws"
-});
+async function main() {
+  const sbClient = new ServiceBusClient(connectionString);
 
-// import appointments data from .csv file
-csv()
-    .fromFile("./appointments.csv")
-    .then((jsonObj) => {
-        appointmentsData = jsonObj;
-        stompClient.activate();
-        console.log("STOMP client activated...");
-    });
+  // createSender() can also be used to create a sender for a topic.
+  const sender = sbClient.createSender(queueName);
 
-// once connected add messages to queue then disconnect
-stompClient.onConnect = (frame) => {
-    console.log("STOMP client connected...");
-    publishToQueue(appointmentsData);
-};
+  try {
+    // Tries to send all messages in a single batch.
+    // Will fail if the messages cannot fit in a batch.
+    // import appointments data from .csv file
+    const appointmentsData = await csv().fromFile("./appointments.csv");
 
-function publishToQueue(data) {
+    for (const row of appointmentsData) {
+      const mqData = {
+        applicationProperties: {
+          to: row["Phone"]
+        },
+        body: `Hello ${row['Name']}, you have an appointment with us in ${leadTimeInMinutes}
+minutes. See you soon.`
+      };
 
-    // stop condition, all application messages added to queue
-    if (data.length === 0) {
-        stompClient.deactivate();
-        console.log("STOMP client deactivated.");
-        return;
-    }
-
-    let row = data.shift();
-    let mqData = {
-        to: row['Phone'],
-        body: (`Hello ${row['Name']}, you have an appointment with us in ${leadTimeInMinutes}
-minutes. See you soon.`)
-    };
-
-    // publish the current application message to the "foo.bar" queue
-    // uses AMQ_SCHEDULED_DELAY, the time in milliseconds that a message will wait
-    // must be a positive value
-    if (toDelayFromDate(row['AppointmentDateTime']) > 0) {
-        console.log(toDelayFromDate(row['AppointmentDateTime']));
+      if (toDelayFromDate(row["AppointmentDateTime"]) - Date.now() > 0) {
+        console.log(new Date(toDelayFromDate(row["AppointmentDateTime"])));
         console.log("publish...");
-        stompClient.publish({
-            destination: '/queue/foo.bar',
-            body: JSON.stringify(mqData),
-            headers: {
-                'content-type': 'application/json',
-                AMQ_SCHEDULED_DELAY: toDelayFromDate(row['AppointmentDateTime'])
-            }
-        });
+
+        const scheduledEnqueueTimeUtc = new Date(toDelayFromDate(row["AppointmentDateTime"]));
+
+        await sender.scheduleMessages(mqData, scheduledEnqueueTimeUtc);
+      }
     }
 
-    // recursive call until all messages are added to queue
-    publishToQueue(data);
+    console.log(`Sent a batch of messages to the queue: ${queueName}`);
+
+    // Close the sender
+    await sender.close();
+  } finally {
+    await sbClient.close();
+  }
 }
 
 // utility function, returns milliseconds
 // calculates the difference between the appointment time and the current time
 function toDelayFromDate(dateTime) {
-    let appointmentDateTime = new moment(dateTime);
-    let now = new moment();
-    const delay = (moment.duration(appointmentDateTime.diff(now)).as('milliseconds'));
-    const leadTimeInMilliseconds = (leadTimeInMinutes * 60 * 1000);
-    return (delay - leadTimeInMilliseconds);
+  return moment(dateTime).subtract(leadTimeInMinutes, 'minutes').valueOf();
 }
+
+main().catch((err) => {
+  console.log("Error occurred: ", err);
+  process.exit(1);
+});
+
