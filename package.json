@@ -11,11 +11,10 @@
     "license": "ISC",
     "private": "true",
     "dependencies": {
-        "@stomp/stompjs": "^5.4.4",
+        "@azure/service-bus": "^7.0.3",
         "csvtojson": "^2.0.10",
         "dotenv": "^8.2.0",
-        "moment": "^2.27.0",
-        "twilio": "^3.48.2",
-        "websocket": "^1.0.31"
+        "moment": "^2.29.1",
+        "twilio": "^3.57.0"
     }
 }
